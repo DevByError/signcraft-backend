@@ -6,6 +6,7 @@ import moment from 'moment';
 import login from '../models/management/login';
 import userroleconfig from '../models/management/userroleconfig';
 import { v4 as uuidv4 } from 'uuid';
+import role from '../models/management/role';
 
 export const getregister = (req: Request, res: Response, next: NextFunction) => {
     res.status(200).render('accounts/register', { pageTitle: 'LUC Online System || Register Page', msg: '', sts: '', data: req.body });
@@ -75,68 +76,95 @@ export const postregister = async (req: Request, res: Response, next: NextFuncti
 
 export const postlogin = async (req: Request, res: Response) => {
     try {
-        const user: any = await login.findOne({
+
+        // const user: any = await login.findOne({
+        //     where: {
+        //         username: req.body.email,
+        //         sts: true
+        //     }
+        // });
+
+        // if (!user) {
+        //     return res.status(401).json({
+        //         success: false,
+        //         data: { msg: 'Invalid Login Details!' }
+        //     });
+        // }
+        login.findOne({
             where: {
                 username: req.body.email,
                 sts: true
             }
-        });
-
-        if (!user) {
-            return res.status(401).json({
-                success: false,
-                data: { msg: 'Invalid Login Details!' }
-            });
-        }
-
-        const isMatch = await bcrypt.compare(req.body.password, user.password);
-
-        if (!isMatch) {
-            return res.status(401).json({
-                success: false,
-                data: { msg: 'Invalid Login Details!' }
-            });
-        }
-
-        const roles = await userroleconfig.findAll({
-            where: { user_id: user.id, sts: true },
-        });
-
-        const allroles = roles.map((r: any) => r.role_id);
-
-        const token = jwt.sign(
-            {
-                isLoggedIn: true,
-                userId: user.id,
-                email: user.username,
-                username: `${user.firstname} ${user.lastname}`,
-                role: allroles
-            },
-            process.env.token_secret as string,
-            { expiresIn: '24h' }
-        );
-
-        res.cookie('authtoken', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 24 * 60 * 60 * 1000
-        });
-
-        return res.status(200).json({
-            success: true,
-            data: {
-                msg: 'Login successful',
-                authtoken: token
+        }).then(async (user: any) => {
+            if (!user) {
+                return res.status(401).json({
+                    success: false,
+                    data: { msg: 'Invalid Login Details!' }
+                });
             }
+
+            const isMatch = await bcrypt.compare(req.body.password, user.password);
+            if (!isMatch) {
+                return res.status(401).json({
+                    success: false,
+                    data: { msg: 'Invalid Login Details!' }
+                });
+            }
+
+
+            const roles = await userroleconfig.findAll({
+                where: { user_id: user.id, sts: true },
+                include: [
+                    {
+                        model: role,
+                        attributes: ['rolename']
+                    }
+                ]
+            });
+
+
+            const roleNames = roles.map((r: any) => r.tblrole.rolename.toLowerCase());
+
+            const token = jwt.sign(
+                {
+                    isLoggedIn: true,
+                    userId: user.id,
+                    email: user.username,
+                    username: `${user.firstname} ${user.lastname}`,
+                    role: roleNames
+                },
+                process.env.token_secret as string,
+                { expiresIn: '24h' }
+            );
+
+
+            res.cookie('authtoken', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                maxAge: 24 * 60 * 60 * 1000
+            });
+
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    msg: 'Login successful',
+                    authtoken: token,
+                    // roles: roleNames
+                }
+            });
+
         });
 
     } catch (err) {
+        console.error(err);
         return res.status(500).json({
             success: false,
             data: { msg: 'Server error' }
         });
     }
 };
+
 
 
 export const getlogout = (req: Request, res: Response) => {
