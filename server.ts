@@ -48,7 +48,7 @@ app.use(cookieParser());
 import designingRoutes from './routes/designingRoute';
 import accountsRoute from './routes/accountsRoute';
 import errorsRoute from './routes/errorsRoute';
-import generalRoute from './routes/generalRoute.';
+import generalRoute from './routes/generalRoute';
 
 // 7. ASSIGN ROUTES
 app.use('/design', designingRoutes);

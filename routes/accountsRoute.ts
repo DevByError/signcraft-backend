@@ -15,27 +15,15 @@ import * as expvalidator from "../validators/expvalidator";
 
 const route = express.Router();
 
-// route.get('/register', accountsController.getregister);
-// route.post('/register', expvalidator.registervalidator, accountsController.postregister);
-
-route.get('/login', accountsController.getlogin);
-
-route.post('/login', expvalidator.loginvalidator, accountsController.postlogin);
-
-route.get('/register', accountsController.getregister);
+// Authentication routes
 route.post('/register', expvalidator.registervalidator, accountsController.postregister);
+route.get('/login', accountsController.getlogin);
+route.post('/login', expvalidator.loginvalidator, accountsController.postlogin);
+route.get('/logout', chktoken, accountsController.getlogout);
 
-// route.get('/logout', accountsController.getlogout);
 
-// route.get('/passwordreset', accountsController.getpasswordreset);
-// route.post('/passwordreset', expvalidator.passwordresetvalidator, accountsController.postpasswordreset);
-// route.get('/passwordrecovery', accountsController.getpasswordrecovery);
-// route.post('/passwordrecovery', expvalidator.passwordrecoveryvalidator, accountsController.postpasswordrecovery);
 
-// route.get('/dashboard', chktoken, chkrole, menus, profile, accountsController.getdashboard);
-
-// route.get('/managerdash', isAuth, isAuthorize, sessionlocale, accountsController.getmanagerdash);
-
+// Default route
 route.get('/', accountsController.getlogin);
 
 export default route;

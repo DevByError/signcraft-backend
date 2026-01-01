@@ -14,24 +14,24 @@ import chktoken from '../middlewares/chktoken';
 
 const router = express.Router();
 
-// DESIGN ROUTES
-router.get('/getalldesigns', designController.getalldesigns);
-router.get('/getdesignbyid', designController.getdesignbyid);
-router.post('/postsavedesign', expvalidator.savedesignvalidator, designController.postsavedesign);
-router.post('/postdeldesign', designController.postdeldesign);
-router.post('/postexportvideo', designController.postexportvideo);
-// PLAYLIST ROUTES
-router.get('/getplaylists', playlistController.getplaylists);
-router.get('/getplaylistdetails', playlistController.getplaylistdetails);
-router.post('/postsaveplaylist', playlistController.postsaveplaylist);
-router.post('/postsyncplaylistitems', playlistController.postsyncplaylistitems);
-router.post('/postdelplaylist', playlistController.postdelplaylist); // Added
+// DESIGN ROUTES (protected with token verification)
+router.get('/getalldesigns', chktoken, designController.getalldesigns);
+router.get('/getdesignbyid', chktoken, designController.getdesignbyid);
+router.post('/postsavedesign', chktoken, expvalidator.savedesignvalidator, designController.postsavedesign);
+router.post('/postdeldesign', chktoken, designController.postdeldesign);
+router.post('/exportvideo', chktoken, designController.postexportvideo);
+// PLAYLIST ROUTES (protected with token verification)
+router.get('/getplaylists', chktoken, playlistController.getplaylists);
+router.get('/getplaylistdetails', chktoken, playlistController.getplaylistdetails);
+router.post('/saveplaylist', chktoken, playlistController.postsaveplaylist);
+router.post('/syncplaylistitems', chktoken, playlistController.postsyncplaylistitems);
+router.post('/delplaylist', chktoken, playlistController.postdelplaylist); // Added
 
 // SCREEN ROUTES
 router.get('/getscreens', screenController.getscreens);
 router.get('/getscreenbyid', screenController.getscreenbyid); // Added
-router.post('/postscreenupdate', screenController.postscreenupdate);
-router.post('/postdelscreen', screenController.postdelscreen);
-router.post('/postdeploytoscreen', screenController.postdeploytoscreen); // The "Live" version
+router.post('/screensupdate', screenController.postscreenupdate);
+router.post('/delscreen', screenController.postdelscreen);
+router.post('/deploytoscreen', screenController.postdeploytoscreen); // The "Live" version
 
 export default router;

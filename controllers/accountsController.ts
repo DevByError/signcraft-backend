@@ -76,91 +76,79 @@ export const postregister = async (req: Request, res: Response, next: NextFuncti
 
 export const postlogin = async (req: Request, res: Response) => {
     try {
+        console.log('🔐 [LOGIN] Login attempt for:', req.body.email);
 
-        // const user: any = await login.findOne({
-        //     where: {
-        //         username: req.body.email,
-        //         sts: true
-        //     }
-        // });
-
-        // if (!user) {
-        //     return res.status(401).json({
-        //         success: false,
-        //         data: { msg: 'Invalid Login Details!' }
-        //     });
-        // }
-        login.findOne({
+        const user = await login.findOne({
             where: {
                 username: req.body.email,
                 sts: true
             }
-        }).then(async (user: any) => {
-            if (!user) {
-                return res.status(401).json({
-                    success: false,
-                    data: { msg: 'Invalid Login Details!' }
-                });
-            }
-
-            const isMatch = await bcrypt.compare(req.body.password, user.password);
-            if (!isMatch) {
-                return res.status(401).json({
-                    success: false,
-                    data: { msg: 'Invalid Login Details!' }
-                });
-            }
-
-
-            const roles = await userroleconfig.findAll({
-                where: { user_id: user.id, sts: true },
-                include: [
-                    {
-                        model: role,
-                        attributes: ['rolename']
-                    }
-                ]
-            });
-
-
-            const roleNames = roles.map((r: any) => r.tblrole.rolename.toLowerCase());
-
-            const token = jwt.sign(
-                {
-                    isLoggedIn: true,
-                    userId: user.id,
-                    email: user.username,
-                    username: `${user.firstname} ${user.lastname}`,
-                    role: roleNames
-                },
-                process.env.token_secret as string,
-                { expiresIn: '24h' }
-            );
-
-
-            res.cookie('authtoken', token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                maxAge: 24 * 60 * 60 * 1000
-            });
-
-
-            return res.status(200).json({
-                success: true,
-                data: {
-                    msg: 'Login successful',
-                    authtoken: token,
-                    // roles: roleNames
-                }
-            });
-
         });
 
-    } catch (err) {
-        console.error(err);
+        if (!user) {
+            console.log('❌ [LOGIN] User not found:', req.body.email);
+            return res.status(401).json({
+                success: false,
+                data: { msg: 'Invalid Login Details!' }
+            });
+        }
+
+        const isMatch = await bcrypt.compare(req.body.password, (user as any).password);
+        if (!isMatch) {
+            console.log('❌ [LOGIN] Invalid password for:', req.body.email);
+            return res.status(401).json({
+                success: false,
+                data: { msg: 'Invalid Login Details!' }
+            });
+        }
+
+        const roles = await userroleconfig.findOne({
+            where: { user_id: (user as any).id, sts: true },
+            include: [
+                {
+                    model: role,
+                    attributes: ['rolename']
+                }
+            ]
+        });
+
+        const rolename: string = roles && roles.getDataValue('tblrole')
+            ? roles.getDataValue('tblrole').rolename.toLowerCase()
+            : 'designer';
+
+        const token = jwt.sign(
+            {
+                isLoggedIn: true,
+                userId: (user as any).id,
+                email: (user as any).username,
+                username: `${(user as any).firstname} ${(user as any).lastname}`,
+                role: rolename
+            },
+            process.env.token_secret as string,
+            { expiresIn: '24h' }
+        );
+
+        res.cookie('authtoken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 24 * 60 * 60 * 1000
+        });
+
+        console.log('✅ [LOGIN] Login successful for:', (user as any).username, '| Role:', rolename);
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                msg: 'Login successful',
+                authtoken: token,
+            }
+        });
+
+    } catch (error: any) {
+        console.error('❌ [LOGIN] Error during login:', error);
         return res.status(500).json({
             success: false,
-            data: { msg: 'Server error' }
+            data: { msg: 'An error occurred during login. Please try again.' }
         });
     }
 };

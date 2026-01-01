@@ -6,52 +6,90 @@ import ffmpeg from 'fluent-ffmpeg';
 import puppeteer from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
+import playlistItem from '../models/designing/playlistItem';
 
-// GET ALL DESIGNS
-export const getalldesigns = (req: Request, res: Response) => {
-    design.findAll({ where: { sts: true } }).then((result: any) => {
-        if (result) {
+// GET ALL DESIGNS (filtered by user)
+export const getalldesigns = async (req: Request, res: Response) => {
+    // Get userId from middleware (set by chktoken)
+    const userId = (req as any).userID || req.body?.userID;
+    
+    if (!userId) {
+        return res.status(401).send({ success: false, msg: 'Unauthorized: User ID not found' });
+    }
+
+    await design.findAll({ where: { userId: userId, sts: true } }).then((result: any) => {
+        if (result && result.length > 0) {
             res.status(200).send({ success: true, data: result });
         } else {
-            res.status(200).send({ success: false, msg: 'Empty gallery' });
+            res.status(200).send({ success: true, data: [], msg: 'No designs found' });
         }
+    }).catch((err: any) => {
+        console.error('Error fetching designs:', err);
+        res.status(500).send({ success: false, msg: 'Error fetching designs' });
     });
 };
 
-// GET DESIGN BY ID
+// GET DESIGN BY ID (with user verification)
 export const getdesignbyid = (req: Request, res: Response) => {
-    design.findOne({ where: { id: req.query.id, sts: true } }).then((result: any) => {
+    const designId = req.query.id as string;
+    // Get userId from middleware (set by chktoken)
+    const userId = (req as any).userID || req.body?.userID;
+    
+    if (!designId) {
+        return res.status(400).send({ success: false, msg: 'Design ID required' });
+    }
+    
+    if (!userId) {
+        return res.status(401).send({ success: false, msg: 'Unauthorized: User ID not found' });
+    }
+
+    design.findOne({ where: { id: designId, userId: userId, sts: true } }).then((result: any) => {
         if (result) {
             res.status(200).send({ success: true, data: result });
         } else {
-            res.status(200).send({ success: false, msg: 'Design not found' });
+            res.status(403).send({ success: false, msg: 'Design not found or access denied' });
         }
+    }).catch((err: any) => {
+        console.error('Error fetching design:', err);
+        res.status(500).send({ success: false, msg: 'Error fetching design' });
     });
 };
 
 // CREATE OR UPDATE DESIGN (Name & Content)
 export const postsavedesign = (req: Request, res: Response) => {
-    // If you are testing WITHOUT chktoken, we need a dummy ID
-    // If chktoken is ON, it will use req.body.userID
-    const activeUserId = req.body.userID || "00000000-0000-0000-0000-000000000000";
+    // Get userId from middleware (set by chktoken) - this is the source of truth
+    const activeUserId = (req as any).userID || req.body?.userID;
+
+    if (!activeUserId) {
+        return res.status(401).send({ success: false, msg: 'Unauthorized: User ID not found' });
+    }
 
     if (req.body.id) {
-        // UPDATE EXISTING
-        design.update({
-            title: req.body.title,
-            canvasData: req.body.canvasData,
-            timelineData: req.body.timelineData,
-            userId: activeUserId, // ✅ ADD THIS
-            UpdatedBy: activeUserId
-        }, { where: { id: req.body.id } }).then((result: any) => {
-            res.status(200).send({
-                success: true,
-                msg: 'Design Updated',
-                data: { id: req.body.id }
+        // UPDATE EXISTING - verify ownership first
+        design.findOne({ where: { id: req.body.id, userId: activeUserId } }).then((existingDesign: any) => {
+            if (!existingDesign) {
+                return res.status(403).send({ success: false, msg: 'Design not found or access denied' });
+            }
+            
+            design.update({
+                title: req.body.title,
+                canvasData: req.body.canvasData,
+                timelineData: req.body.timelineData,
+                userId: activeUserId,
+                UpdatedBy: activeUserId
+            }, { where: { id: req.body.id } }).then((result: any) => {
+                res.status(200).send({
+                    success: true,
+                    msg: 'Design Updated',
+                    data: { id: req.body.id }
+                });
+            }).catch(err => {
+                console.error(err);
+                res.status(500).send({ success: false, msg: "Update failed" });
             });
         }).catch(err => {
             console.error(err);
-            res.status(500).send({ success: false, msg: "Update failed" });
+            res.status(500).send({ success: false, msg: "Verification failed" });
         });
     } else {
         // CREATE NEW
@@ -60,7 +98,7 @@ export const postsavedesign = (req: Request, res: Response) => {
             title: req.body.title,
             canvasData: req.body.canvasData,
             timelineData: req.body.timelineData,
-            userId: activeUserId, // ✅ ADD THIS (Fixes the SequelizeValidationError)
+            userId: activeUserId,
             CreatedBy: activeUserId,
             sts: true
         }).then((result: any) => {
@@ -72,28 +110,96 @@ export const postsavedesign = (req: Request, res: Response) => {
     }
 };
 
-// DELETE DESIGN
-export const postdeldesign = (req: Request, res: Response) => {
-    design.update({ sts: false }, { where: { id: req.body.id } }).then((result: any) => {
-        if (result) {
-            res.status(200).send({ success: true, msg: 'Design Deleted' });
-        } else {
-            res.status(200).send({ success: false, msg: 'Error deleting' });
-        }
-    });
-};
+export const postdeldesign = async (req: Request, res: Response) => {
+  try {
+    // Get designId from multiple sources (consistent with other endpoints)
+    const designId =
+      req.params.designId ||
+      req.body?.designId ||
+      req.body?.id;
 
+    // Get userId from middleware (set by chktoken) - with fallback to body
+    const userId = (req as any).userID || req.body?.userID;
+
+    console.log('🗑️ [DELETE_DESIGN] Request received:', { designId, userId, hasToken: !!req.cookies?.authtoken });
+
+    if (!designId) {
+      console.log('❌ [DELETE_DESIGN] Missing designId');
+      return res.status(400).json({
+        success: false,
+        msg: 'designId is required',
+      });
+    }
+
+    if (!userId) {
+      console.log('❌ [DELETE_DESIGN] Missing userId - token might be invalid or expired');
+      return res.status(401).json({
+        success: false,
+        msg: 'Unauthorized: User ID not found',
+      });
+    }
+
+    // Verify design exists and belongs to user before deleting
+    const designExists = await design.findOne({
+      where: { id: designId, userId: userId, sts: true }
+    });
+
+    console.log('🔍 [DELETE_DESIGN] Design lookup result:', { found: !!designExists, designId, userId });
+
+    if (!designExists) {
+      console.log('❌ [DELETE_DESIGN] Design not found for user or already deleted');
+      return res.status(404).json({
+        success: false,
+        msg: 'Design not found or access denied',
+      });
+    }
+
+    // 1️⃣ Remove playlist links first
+    await playlistItem.destroy({
+      where: { designId },
+    });
+
+    // 2️⃣ Delete design
+    const result = await design.destroy({
+      where: { id: designId, userId },
+    });
+
+    console.log('✅ [DELETE_DESIGN] Design deleted successfully:', { designId, rowsDeleted: result });
+
+    res.status(200).json({
+      success: true,
+      msg: 'Design deleted successfully',
+    });
+  } catch (err) {
+    console.error('❌ [DELETE_DESIGN] Error:', err);
+    res.status(500).json({
+      success: false,
+      msg: 'Internal server error',
+    });
+  }
+};
 
 export const postexportvideo = (req: Request, res: Response) => {
     const designId = req.body.id;
+    // Get userId from middleware first, fall back to req.body
+    const userId = (req as any).userId || req.body?.userId;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
     const bucketName = process.env.AWS_BUCKET_NAME;
     const region = process.env.AWS_REGION;
     const fps = 30;
 
-    design.findOne({ where: { id: designId, sts: true } }).then((designData: any) => {
+    if (!designId) {
+        return res.status(400).send({ success: false, msg: 'Design ID required' });
+    }
+    
+    if (!userId) {
+        return res.status(401).send({ success: false, msg: 'Unauthorized: User ID not found' });
+    }
+
+    // Verify design belongs to user
+    design.findOne({ where: { id: designId, userId: userId, sts: true } }).then((designData: any) => {
         if (!designData) {
-            res.status(200).send({ success: false, msg: 'Design not found' });
+            res.status(404).send({ success: false, msg: 'Design not found or access denied' });
         } else {
             const tempDir = path.join(__dirname, `../../temp/${designId}`);
             if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
