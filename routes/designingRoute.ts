@@ -10,7 +10,8 @@ import * as expvalidator from '../validators/expvalidator';
 
 // Import Middlewares
 import chktoken from '../middlewares/chktoken';
-// import chkrole from '../middlewares/chkrole'; 
+import { check } from 'express-validator';
+import chkrole from '../middlewares/chkrole';
 
 const router = express.Router();
 
@@ -18,7 +19,9 @@ const router = express.Router();
 router.get('/getalldesigns', chktoken, designController.getalldesigns);
 router.get('/getdesignbyid', chktoken, designController.getdesignbyid);
 router.post('/postsavedesign', chktoken, expvalidator.savedesignvalidator, designController.postsavedesign);
-router.post('/postdeldesign', chktoken, designController.postdeldesign);
+// router.post('/postdeldesign', designController.postdeldesign);
+router.post('/postdeldesign', chktoken, chkrole, designController.postdeldesign);
+
 router.post('/exportvideo', chktoken, designController.postexportvideo);
 // PLAYLIST ROUTES (protected with token verification)
 router.get('/getplaylists', chktoken, playlistController.getplaylists);

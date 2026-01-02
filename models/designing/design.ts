@@ -1,5 +1,6 @@
 import Sequelize from 'sequelize';
 import sequelize from '../../utils/dbconnector';
+import login from '../management/login';
 
 const design = sequelize.define('tbldesigns', {
     id: { type: Sequelize.UUID, allowNull: false, primaryKey: true },
@@ -12,6 +13,17 @@ const design = sequelize.define('tbldesigns', {
     CreatedBy: { type: Sequelize.UUID, allowNull: true },
     UpdatedBy: { type: Sequelize.UUID, allowNull: true },
     sts: { type: Sequelize.BOOLEAN, allowNull: false, defaultValue: true }
+});
+
+login.hasMany(design, {
+    foreignKey: 'userId',       // matches tbldesigns.userId
+    onDelete: 'CASCADE',        // if a user is deleted, their designs are deleted
+    onUpdate: 'CASCADE',
+});
+
+// Each design belongs to a user
+design.belongsTo(login, {
+    foreignKey: 'userId',
 });
 
 export default design;

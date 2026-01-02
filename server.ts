@@ -6,6 +6,9 @@ import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import sequelize from './utils/dbconnector';
 import cors from 'cors';
+import path from 'path';
+
+
 
 // 1. Load environment variables at the very top
 dotenv.config();
@@ -19,6 +22,13 @@ const io = new Server(httpServer, {
 
 // 3. IMPORTANT: Allow controllers to use socket.io
 app.set('socketio', io);
+
+// new VIEW ENGINE SETUP
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// 🔹 Needed for form submissions
+app.use(express.urlencoded({ extended: true }));
 
 // 4. --- IMPORT ALL MODELS TO FORCE TABLE CREATION ---
 import './models/management/login';
