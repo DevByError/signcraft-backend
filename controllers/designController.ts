@@ -7,6 +7,7 @@ import puppeteer from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
 import playlistItem from '../models/designing/playlistItem';
+import multer from 'multer';
 import login from '../models/management/login';
 
 // GET ALL DESIGNS (filtered by user)
@@ -245,4 +246,77 @@ export const postexportvideo = (req: Request, res: Response) => {
             });
         }
     });
+};
+
+// --- Middleware Setup ---
+const uploadDir = 'temp_uploads/';
+
+// Ensure temp folder exists
+if (!fs.existsSync(uploadDir)) {
+    console.log(`[Server] Creating temp directory: ${uploadDir}`);
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const upload = multer({ dest: uploadDir });
+export const uploadMiddleware = upload.single('file');
+
+// --- Controller Function ---
+export const postuploadasset = async (req: Request, res: Response) => {
+    console.log('--------------------------------------------------');
+    console.log('[Controller] 📥 postuploadasset request received');
+
+    try {
+        const file = req.file;
+        // Handle UserID from token (req.userID) or body (req.body.userID)
+        const userId = (req as any).userID || req.body.userID || 'anonymous';
+
+        // 1. Check if file exists
+        if (!file) {
+            console.error('[Controller] ❌ No file found in request. Check "file" key in FormData.');
+            return res.status(400).send({ success: false, msg: 'No file uploaded' });
+        }
+
+        console.log(`[Controller] 📄 File Details: Name=${file.originalname}, Size=${(file.size / 1024 / 1024).toFixed(2)} MB, Mime=${file.mimetype}`);
+
+        // 2. Prepare for S3
+        const fileExtension = path.extname(file.originalname);
+        // Clean filename: Remove spaces, add timestamp
+        const cleanFileName = `${userId}_${Date.now()}${fileExtension}`.replace(/\s+/g, '');
+
+        console.log(`[Controller] 🔄 generated S3 Key: ${cleanFileName}`);
+
+        // 3. Call Service
+        // We pass file.mimetype so S3 knows if it's an image or video
+        const s3Url = await uploadVideoToS3(file.path, cleanFileName, file.mimetype);
+
+        // 4. Cleanup Local File
+        if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+            console.log(`[Controller] 🧹 Local temp file deleted: ${file.path}`);
+        }
+
+        // 5. Send Response
+        console.log('[Controller] ✅ Sending success response to client');
+        console.log('--------------------------------------------------');
+
+        return res.status(200).send({
+            success: true,
+            url: s3Url,
+            msg: 'Asset uploaded successfully'
+        });
+
+    } catch (err: any) {
+        console.error('[Controller] ❌ Critical Error:', err);
+
+        // Attempt cleanup on error
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+            console.log('[Controller] 🧹 Local temp file cleaned up after error');
+        }
+
+        return res.status(500).send({
+            success: false,
+            msg: err.message || 'Internal Server Error during upload'
+        });
+    }
 };

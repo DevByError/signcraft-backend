@@ -22,6 +22,9 @@ router.post('/postsavedesign', chktoken, expvalidator.savedesignvalidator, desig
 // router.post('/postdeldesign', designController.postdeldesign);
 router.post('/postdeldesign', chktoken, chkrole, designController.postdeldesign);
 
+router.post('/postuploadasset', designController.uploadMiddleware, designController.postuploadasset);
+
+
 router.post('/exportvideo', chktoken, designController.postexportvideo);
 // PLAYLIST ROUTES (protected with token verification)
 router.get('/getplaylists', chktoken, playlistController.getplaylists);
