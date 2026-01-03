@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import sequelize from './utils/dbconnector';
 import cors from 'cors';
 import path from 'path';
+import { initAssociations } from './models/designing/initAssociations';
 
 
 
@@ -68,6 +69,8 @@ app.use('/accounts', accountsRoute);
 app.use('/errors', errorsRoute);
 app.use('/general', generalRoute);
 app.use('/', accountsRoute);
+
+initAssociations();
 
 // 8. SOCKET.IO LOGIC
 io.on('connection', (socket) => {

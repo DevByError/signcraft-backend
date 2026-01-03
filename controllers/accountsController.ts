@@ -156,17 +156,18 @@ export const postlogin = async (req: Request, res: Response) => {
 
 
 export const getlogout = (req: Request, res: Response) => {
+    // 1. Clear the HTTP-only cookie
     res.clearCookie('authtoken', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: process.env.NODE_ENV === 'production', // Ensure true in HTTPS
+        sameSite: 'strict', // Protects against CSRF
         path: '/'
     });
 
-    return res.status(200).render('accounts/login', {
-        pageTitle: 'LUC Online System || Login Page',
-        msg: 'You have successfully logged out.',
-        sts: 'SUCCESS',
-        data: {}
+    // 2. Return JSON response for the React Frontend to handle
+    return res.status(200).json({
+        success: true,
+        msg: 'You have successfully logged out.'
     });
 };
 
