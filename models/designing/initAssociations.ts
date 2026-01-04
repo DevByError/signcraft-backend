@@ -2,6 +2,9 @@ import playlist from '../designing/playlist';
 import playlistItem from '../designing/playlistItem';
 import design from '../designing/design';
 import login from '../management/login';
+// ✅ Import the new models
+import screen from '../designing/screen';
+import schedule from '../designing/schedule';
 
 export const initAssociations = () => {
     console.log('🔗 Initializing Database Associations...');
@@ -18,9 +21,25 @@ export const initAssociations = () => {
     design.hasMany(playlistItem, { foreignKey: 'designId', onDelete: 'RESTRICT' });
     playlistItem.belongsTo(design, { foreignKey: 'designId' });
 
-    // --- Design <-> User (If you haven't defined it elsewhere) ---
+    // --- Design <-> User ---
     design.belongsTo(login, { foreignKey: 'userId' });
     login.hasMany(design, { foreignKey: 'userId' });
+
+    // =========================================================
+    // 🚀 NEW ASSOCIATIONS FOR SCREEN MANAGEMENT & SCHEDULING
+    // =========================================================
+
+    // --- Screen <-> Playlist (The "Default" or "Current" Playlist) ---
+    screen.belongsTo(playlist, { foreignKey: 'playlistId' });
+    playlist.hasMany(screen, { foreignKey: 'playlistId' });
+
+    // --- Schedule <-> Screen (One screen has many scheduled slots) ---
+    schedule.belongsTo(screen, { foreignKey: 'screenId', onDelete: 'CASCADE' });
+    screen.hasMany(schedule, { foreignKey: 'screenId' });
+
+    // --- Schedule <-> Playlist (What content plays during that slot) ---
+    schedule.belongsTo(playlist, { foreignKey: 'playlistId', onDelete: 'CASCADE' });
+    playlist.hasMany(schedule, { foreignKey: 'playlistId' });
 
     console.log('✅ Database Associations Setup Complete.');
 };

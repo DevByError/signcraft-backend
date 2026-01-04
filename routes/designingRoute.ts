@@ -33,11 +33,12 @@ router.post('/postsaveplaylist', chktoken, playlistController.postsaveplaylist);
 router.post('/postsyncplaylistitems', chktoken, playlistController.postsyncplaylistitems);
 router.get('/getplaylistdetails', chktoken, playlistController.getplaylistdetails);
 router.post('/postdelplaylist', chktoken, playlistController.postdelplaylist);
+
 // SCREEN ROUTES
-router.get('/getscreens', screenController.getscreens);
-router.get('/getscreenbyid', screenController.getscreenbyid); // Added
-router.post('/screensupdate', screenController.postscreenupdate);
-router.post('/delscreen', screenController.postdelscreen);
-router.post('/deploytoscreen', screenController.postdeploytoscreen); // The "Live" version
+router.get('/getscreens', chktoken, screenController.getscreens);
+router.get('/getscreenbyid', chktoken, screenController.getscreenbyid);
+router.post('/postscreenupdate', chktoken, screenController.postscreenupdate);
+router.post('/postdelscreen', chktoken, screenController.postdelscreen);
+router.post('/postdeploytoscreen', chktoken, screenController.postdeploytoscreen);
 
 export default router;
