@@ -1,13 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
 import Route from '../models/management/route';
-import Role from '../models/management/role'; // Import Role Model
+import Role from '../models/management/role'; // 
 import routeroleconfig from '../models/management/routeroleconfig';
 
 export default (req: Request, res: Response, next: NextFunction) => {
-    // Get the Role Name from the token (decoded in chktoken)
+
     const roleName = (req as any).userRole;
 
-    // Safety check: If for some reason role is missing
     if (!roleName) {
         return res.status(403).json({
             success: false,
@@ -16,7 +15,7 @@ export default (req: Request, res: Response, next: NextFunction) => {
         });
     }
 
-    // Query: Find a config that matches this Route AND matches the Role Name
+
     routeroleconfig.findAll({
         include: [
             {
@@ -29,7 +28,7 @@ export default (req: Request, res: Response, next: NextFunction) => {
             },
             {
                 model: Role,
-                // ✅ HERE IS THE FIX: We filter by the role name from the token
+                // the role name from the token
                 where: { rolename: roleName },
                 required: true
             }

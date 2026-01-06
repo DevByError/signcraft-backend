@@ -16,7 +16,7 @@ const screen = sequelize.define('tblscreen', {
 });
 
 // Relationship: A screen has one playlist
-screen.belongsTo(playlist, { foreignKey: 'playlistId' });
-playlist.hasMany(screen, { foreignKey: 'playlistId' });
+// screen.belongsTo(playlist, { foreignKey: 'playlistId' });
+// playlist.hasMany(screen, { foreignKey: 'playlistId' });
 
 export default screen;

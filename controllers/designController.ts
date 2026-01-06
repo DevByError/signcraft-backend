@@ -10,7 +10,7 @@ import playlistItem from '../models/designing/playlistItem';
 import multer from 'multer';
 import login from '../models/management/login';
 
-// GET ALL DESIGNS (filtered by user)
+
 export const getalldesigns = async (req: Request, res: Response) => {
     // Get userId from middleware (set by chktoken)
     const userId = (req as any).userID || req.body?.userID;
@@ -31,7 +31,7 @@ export const getalldesigns = async (req: Request, res: Response) => {
     });
 };
 
-// GET DESIGN BY ID (with user verification)
+
 export const getdesignbyid = (req: Request, res: Response) => {
     const designId = req.query.id as string;
     // Get userId from middleware (set by chktoken)
@@ -57,7 +57,7 @@ export const getdesignbyid = (req: Request, res: Response) => {
     });
 };
 
-// CREATE OR UPDATE DESIGN (Name & Content)
+
 export const postsavedesign = async (req: Request, res: Response) => {
     const activeUserId = (req as any).userID || req.body?.userID;
 
@@ -248,10 +248,10 @@ export const postexportvideo = (req: Request, res: Response) => {
     });
 };
 
-// --- Middleware Setup ---
+
 const uploadDir = 'temp_uploads/';
 
-// Ensure temp folder exists
+
 if (!fs.existsSync(uploadDir)) {
     console.log(`[Server] Creating temp directory: ${uploadDir}`);
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -260,7 +260,7 @@ if (!fs.existsSync(uploadDir)) {
 const upload = multer({ dest: uploadDir });
 export const uploadMiddleware = upload.single('file');
 
-// --- Controller Function ---
+
 export const postuploadasset = async (req: Request, res: Response) => {
     console.log('--------------------------------------------------');
     console.log('[Controller] 📥 postuploadasset request received');

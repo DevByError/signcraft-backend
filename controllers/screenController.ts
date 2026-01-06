@@ -12,14 +12,14 @@ import { PuppeteerScreenRecorder } from 'puppeteer-screen-recorder';
 import fs from 'fs';
 import path from 'path';
 
-// Helper: Get Active Socket Count for a Room (Screen)
+
 const getConnectedCount = (io: any, screenId: string) => {
     if (!io || !io.sockets) return 0;
     const room = io.sockets.adapter.rooms.get(screenId);
     return room ? room.size : 0;
 };
 
-// HELPER: Safely extract UserID
+
 const getUserID = (req: Request): string | null => {
     const r = req as any;
     if (r.user && (r.user.userId || r.user.id)) return r.user.userId || r.user.id;
@@ -112,9 +112,6 @@ const generatePlaylistVideo = async (
     }
 };
 
-// ==========================================
-// 🚀 DEPLOY CONTROLLER
-// ==========================================
 export const postdeploytoscreen = async (req: Request, res: Response) => {
     const { screenIds, playlistId, mode, startTime, endTime } = req.body;
     const userID = getUserID(req);
@@ -205,9 +202,7 @@ export const postdeploytoscreen = async (req: Request, res: Response) => {
         if (io && socketId) io.to(socketId).emit('deployment_error', { msg: err.message });
     }
 };
-// ==========================================
-// 1. GET ALL SCREENS
-// ==========================================
+
 export const getscreens = async (req: Request, res: Response) => {
     try {
         const userID = getUserID(req);
@@ -232,9 +227,7 @@ export const getscreens = async (req: Request, res: Response) => {
     }
 };
 
-// ==========================================
-// 2. GET SCREEN BY ID
-// ==========================================
+
 export const getscreenbyid = async (req: Request, res: Response) => {
     try {
         const userID = getUserID(req);
@@ -261,9 +254,7 @@ export const getscreenbyid = async (req: Request, res: Response) => {
     }
 };
 
-// ==========================================
-// 3. CREATE / UPDATE
-// ==========================================
+
 export const postscreenupdate = async (req: Request, res: Response) => {
     try {
         const userID = getUserID(req);
@@ -292,9 +283,7 @@ export const postscreenupdate = async (req: Request, res: Response) => {
     }
 };
 
-// ==========================================
-// 4. DELETE SCREEN
-// ==========================================
+
 export const postdelscreen = async (req: Request, res: Response) => {
     try {
         const userID = getUserID(req);

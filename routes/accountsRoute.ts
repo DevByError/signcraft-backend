@@ -17,13 +17,13 @@ const route = express.Router();
 
 // Authentication routes
 route.post('/register', expvalidator.registervalidator, accountsController.postregister);
-route.get('/login', accountsController.getlogin);
+// route.get('/login', accountsController.getlogin);
 route.post('/login', expvalidator.loginvalidator, accountsController.postlogin);
 route.get('/logout', chktoken, accountsController.getlogout);
 
 
 
 // Default route
-route.get('/', accountsController.getlogin);
+// route.get('/', accountsController.getlogin);
 
 export default route;

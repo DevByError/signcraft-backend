@@ -131,7 +131,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        // Optional: Check which rooms they were in to log specific screen disconnects
+        //  Check which rooms they were in to log specific screen disconnects
         console.log(`❌ Device disconnected: ${socket.id}`);
     });
 });
@@ -139,6 +139,7 @@ io.on('connection', (socket) => {
 // 9. START SERVER
 const PORT = process.env.port || 5000;
 
+// additional dotenv config to ensure .env is loaded correctly
 config({ path: path.resolve(process.cwd(), '.env') });
 
 console.log("📍 FRONTEND_URL:", process.env.FRONTEND_URL); // Should print http://localhost:3001

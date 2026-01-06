@@ -4,13 +4,13 @@ import playlist from '../models/designing/playlist';
 import playlistItem from '../models/designing/playlistItem';
 import design from '../models/designing/design'; // Ensure design model is imported
 
-// Helper to get userId securely
+
 const getSecureUserId = (req: Request): string | undefined => {
     // Rely solely on middleware to set userID
     return (req as any).userID;
 };
 
-// GET ALL PLAYLISTS
+
 export const getplaylists = async (req: Request, res: Response) => {
     const userId = getSecureUserId(req);
 
@@ -48,7 +48,7 @@ export const getplaylists = async (req: Request, res: Response) => {
     }
 };
 
-// SAVE PLAYLIST (Create or Update)
+
 export const postsaveplaylist = async (req: Request, res: Response) => {
     const userId = getSecureUserId(req);
 
@@ -92,7 +92,7 @@ export const postsaveplaylist = async (req: Request, res: Response) => {
     }
 };
 
-// SYNC PLAYLIST ITEMS (Add/Remove/Reorder)
+
 export const postsyncplaylistitems = async (req: Request, res: Response) => {
     const { playlistId, items } = req.body;
     const userId = getSecureUserId(req); // From token
@@ -131,7 +131,7 @@ export const postsyncplaylistitems = async (req: Request, res: Response) => {
     }
 };
 
-// GET PLAYLIST DETAILS (With Designs)
+
 export const getplaylistdetails = async (req: Request, res: Response) => {
     const playlistId = req.query.id as string;
     const userId = getSecureUserId(req); // From token
@@ -161,10 +161,11 @@ export const getplaylistdetails = async (req: Request, res: Response) => {
     }
 };
 
-// DELETE PLAYLIST (Soft Delete)
+
+
 export const postdelplaylist = async (req: Request, res: Response) => {
     const playlistId = req.body.id;
-    const userId = getSecureUserId(req); // From token
+    const userId = getSecureUserId(req);
 
     if (!userId) {
         return res.status(401).send({ success: false, msg: 'Unauthorized: Session Invalid' });
@@ -174,11 +175,35 @@ export const postdelplaylist = async (req: Request, res: Response) => {
     }
 
     try {
-        const result = await playlist.update({ sts: false, UpdatedBy: userId }, { where: { id: playlistId, userId } });
-        if (result[0] > 0) res.status(200).send({ success: true, msg: 'Playlist deleted successfully' });
-        else res.status(404).send({ success: false, msg: 'Playlist not found or access denied' });
+
+        await playlistItem.destroy({
+            where: { playlistId: playlistId }
+        });
+
+
+        const deleted = await playlist.destroy({
+            where: {
+                id: playlistId,
+                userId: userId
+            }
+        });
+
+        if (deleted > 0) {
+            res.status(200).send({
+                success: true,
+                msg: 'Playlist and its items permanently deleted from database'
+            });
+        } else {
+            res.status(404).send({
+                success: false,
+                msg: 'Playlist not found or access denied'
+            });
+        }
     } catch (err: any) {
         console.error('Delete playlist error:', err);
-        res.status(500).send({ success: false, msg: 'Error deleting playlist' });
+        res.status(500).send({
+            success: false,
+            msg: 'Error permanently deleting playlist: ' + err.message
+        });
     }
 };

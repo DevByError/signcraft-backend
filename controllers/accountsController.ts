@@ -8,12 +8,12 @@ import userroleconfig from '../models/management/userroleconfig';
 import { v4 as uuidv4 } from 'uuid';
 import role from '../models/management/role';
 
-export const getregister = (req: Request, res: Response, next: NextFunction) => {
-    res.status(200).render('accounts/register', { pageTitle: 'LUC Online System || Register Page', msg: '', sts: '', data: req.body });
-};
-export const getlogin = (req: Request, res: Response, next: NextFunction) => {
-    res.status(200).render('accounts/login', { pageTitle: 'LUC Online System || Login Page', msg: '', sts: '', data: req.body });
-};
+// export const getregister = (req: Request, res: Response, next: NextFunction) => {
+//     res.status(200).render('accounts/register', { pageTitle: 'LUC Online System || Register Page', msg: '', sts: '', data: req.body });
+// };
+// export const getlogin = (req: Request, res: Response, next: NextFunction) => {
+//     res.status(200).render('accounts/login', { pageTitle: 'LUC Online System || Login Page', msg: '', sts: '', data: req.body });
+// };
 
 export const postregister = async (req: Request, res: Response, next: NextFunction) => {
     const { firstname, lastname, email, password, confirm_password } = req.body
