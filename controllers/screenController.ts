@@ -8,7 +8,7 @@ import design from '../models/designing/design';
 import schedule from '../models/designing/schedule';
 import { uploadFileToS3 } from '../utils/s3Uploader';
 import puppeteer from 'puppeteer';
-import { PuppeteerScreenRecorder } from 'puppeteer-screen-recorder'
+import { PuppeteerScreenRecorder } from 'puppeteer-screen-recorder';
 import fs from 'fs';
 import path from 'path';
 
@@ -19,7 +19,7 @@ const getConnectedCount = (io: any, screenId: string) => {
     return room ? room.size : 0;
 };
 
-// ✅ HELPER: Safely extract UserID (Works for GET & POST)
+// HELPER: Safely extract UserID
 const getUserID = (req: Request): string | null => {
     const r = req as any;
     if (r.user && (r.user.userId || r.user.id)) return r.user.userId || r.user.id;
@@ -27,6 +27,184 @@ const getUserID = (req: Request): string | null => {
     return null;
 };
 
+const generatePlaylistVideo = async (
+    playlistId: string,
+    token: string,
+    io: any,
+    socketId: string,
+    totalDurationMs: number,
+    maxWidth: number,
+    maxHeight: number
+): Promise<string> => {
+    const tempFileName = `final_render_${playlistId}_${Date.now()}.mp4`;
+    const tempPath = path.join(process.cwd(), tempFileName);
+    const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3001';
+
+    const emitProgress = (progress: number, stage: string) => {
+        if (io && socketId) {
+            io.to(socketId).emit('deployment_progress', { progress, stage, playlistId });
+        }
+    };
+
+    emitProgress(5, "Initializing Recording Engine...");
+
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    try {
+        const page = await browser.newPage();
+
+        // 1. Set Viewport to the maximum canvas size in the playlist
+        await page.setViewport({ width: maxWidth, height: maxHeight });
+
+        // 2. Inject Auth Token (Headless Login)
+        await page.goto(`${frontendBase}/#/login`, { waitUntil: 'networkidle0' });
+        await page.evaluate((t) => { localStorage.setItem('authtoken', t); }, token);
+        await page.setCookie({
+            name: 'authtoken',
+            value: token,
+            domain: new URL(frontendBase).hostname,
+            path: '/'
+        });
+
+        const recorder = new PuppeteerScreenRecorder(page, {
+            followNewTab: true,
+            fps: 30,
+            videoFrame: { width: maxWidth, height: maxHeight },
+            aspectRatio: '16:9',
+        });
+
+        // 3. Open Playlist Preview with recording=true (Hides all UI)
+        const playlistUrl = `${frontendBase}/#/playlist/preview/${playlistId}?recording=true`;
+        await page.goto(playlistUrl, { waitUntil: 'networkidle2' });
+
+        // 4. Wait for the frontend to signal it's ready
+        await page.waitForSelector('.design-canvas-ready', { timeout: 10000 });
+
+        emitProgress(15, "Starting Seamless Capture...");
+        await recorder.start(tempPath);
+
+        // 5. Record for the exact total duration
+        const startTime = Date.now();
+        while (Date.now() - startTime < totalDurationMs) {
+            const elapsed = Date.now() - startTime;
+            const percent = Math.round(15 + (elapsed / totalDurationMs) * 75);
+            emitProgress(percent, `Recording Playlist: ${Math.round(elapsed / 1000)}s / ${Math.round(totalDurationMs / 1000)}s`);
+            await new Promise(r => setTimeout(r, 1000));
+        }
+
+        await recorder.stop();
+        emitProgress(92, "Uploading to Cloud...");
+
+        const s3Url = await uploadFileToS3(tempPath, `playlist_${playlistId}.mp4`);
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+
+        emitProgress(100, "Finalized!");
+        return s3Url;
+    } catch (error) {
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        if (io && socketId) io.to(socketId).emit('deployment_error', { msg: "Recording failed." });
+        throw error;
+    } finally {
+        await browser.close();
+    }
+};
+
+// ==========================================
+// 🚀 DEPLOY CONTROLLER
+// ==========================================
+export const postdeploytoscreen = async (req: Request, res: Response) => {
+    const { screenIds, playlistId, mode, startTime, endTime } = req.body;
+    const userID = getUserID(req);
+    const token = req.cookies?.authtoken || req.headers.authorization?.split(' ')[1];
+    const socketId = req.headers['x-socket-id'] as string;
+
+    if (!userID || !token) return res.status(401).send({ success: false, msg: 'Unauthorized' });
+
+    const io = req.app.get('socketio');
+
+    try {
+        const validScreens = await screen.findAll({
+            where: { id: { [Op.in]: screenIds }, CreatedBy: userID, sts: true },
+            attributes: ['id']
+        });
+        const validIds = validScreens.map((s: any) => s.id);
+        if (validIds.length === 0) return res.status(200).send({ success: false, msg: 'No valid screens.' });
+
+        const plData: any = await playlist.findOne({
+            where: { id: playlistId },
+            include: [{ model: playlistItem, include: [{ model: design }], required: true }],
+            order: [[playlistItem, 'slno', 'ASC']]
+        });
+
+        if (!plData || !plData.tblplaylistitems.length) {
+            return res.status(200).send({ success: false, msg: 'Playlist is empty.' });
+        }
+
+        // --- PRE-CALCULATE METADATA ---
+        let totalDurationMs = 0;
+        let maxWidth = 0;
+        let maxHeight = 0;
+
+        plData.tblplaylistitems.forEach((item: any) => {
+            totalDurationMs += (item.duration || 10) * 1000;
+            const w = Number(item.tbldesign?.canvasData?.metadata?.canvasWidth) || 1920;
+            const h = Number(item.tbldesign?.canvasData?.metadata?.canvasHeight) || 1080;
+            if (w > maxWidth) maxWidth = w;
+            if (h > maxHeight) maxHeight = h;
+        });
+
+        // Respond immediately (202 Accepted)
+        res.status(202).send({ success: true, msg: 'Generating content...' });
+
+        // Generate video in background
+        const s3VideoUrl = await generatePlaylistVideo(
+            playlistId,
+            token,
+            io,
+            socketId,
+            totalDurationMs,
+            maxWidth,
+            maxHeight
+        );
+
+        // Update database and emit to screens
+        for (const sId of validIds) {
+            let start = mode === 'NOW' ? new Date() : new Date(startTime);
+            let end = mode === 'NOW' ? new Date(Date.now() + 86400000) : new Date(endTime);
+
+            await schedule.create({
+                id: uuidv4(),
+                screenId: sId,
+                playlistId: playlistId,
+                startTime: start,
+                endTime: end,
+                isImmediate: mode === 'NOW',
+                sts: true
+            });
+
+            await screen.update({ playlistId: playlistId }, { where: { id: sId } });
+
+            if (io) {
+                io.to(sId).emit('update_schedule', {
+                    action: 'SYNC_VIDEO',
+                    videoUrl: s3VideoUrl,
+                    playlistName: plData.name,
+                    schedule: {
+                        start: start.toISOString(),
+                        end: end.toISOString(),
+                        isImmediate: mode === 'NOW'
+                    }
+                });
+            }
+        }
+    } catch (err: any) {
+        console.error("Deployment Error:", err);
+        if (io && socketId) io.to(socketId).emit('deployment_error', { msg: err.message });
+    }
+};
 // ==========================================
 // 1. GET ALL SCREENS
 // ==========================================
@@ -115,17 +293,15 @@ export const postscreenupdate = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// 4. DELETE SCREEN (HARD DELETE FIX)
+// 4. DELETE SCREEN
 // ==========================================
 export const postdelscreen = async (req: Request, res: Response) => {
     try {
         const userID = getUserID(req);
         if (!userID) return res.status(401).send({ success: false, msg: 'Unauthorized' });
 
-        // 1. Delete associated schedules first (Clean up)
         await schedule.destroy({ where: { screenId: req.body.id } });
 
-        // 2. ✅ FIX: Use destroy() to remove the record permanently
         const deleted = await screen.destroy({
             where: {
                 id: req.body.id,
@@ -143,139 +319,4 @@ export const postdelscreen = async (req: Request, res: Response) => {
         res.status(500).send({ success: false, msg: 'Error deleting screen' });
     }
 };
-
-// ==========================================
-// 5. DEPLOY
-// ==========================================
-export const postdeploytoscreen = async (req: Request, res: Response) => {
-    const { screenIds, playlistId, mode, startTime, endTime } = req.body;
-    const userID = getUserID(req);
-
-    if (!userID) return res.status(401).send({ success: false, msg: 'Unauthorized' });
-
-    if (!screenIds || !Array.isArray(screenIds) || screenIds.length === 0) {
-        return res.status(200).send({ success: false, msg: 'No screens selected' });
-    }
-
-    const io = req.app.get('socketio');
-
-    try {
-        // 1. Verify Ownership
-        const validScreens = await screen.findAll({
-            where: {
-                id: { [Op.in]: screenIds },
-                CreatedBy: userID,
-                sts: true
-            },
-            attributes: ['id']
-        });
-
-        const validIds = validScreens.map((s: any) => s.id);
-
-        if (validIds.length === 0) {
-            return res.status(200).send({ success: false, msg: 'No valid screens found or access denied.' });
-        }
-
-        // 2. Get Playlist Data
-        const plData: any = await playlist.findOne({
-            where: { id: playlistId },
-            include: [{
-                model: playlistItem,
-                include: [{ model: design, attributes: ['videoUrl', 'title'] }],
-                required: true
-            }],
-            order: [[playlistItem, 'slno', 'ASC']]
-        });
-
-        if (!plData || !plData.tblplaylistitems) {
-            return res.status(200).send({ success: false, msg: 'Playlist is empty.' });
-        }
-
-        // ✅ FIX: Use Fallback Video if design hasn't been exported yet
-        const PLACEHOLDER_VIDEO = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-
-        const videoQueue = plData.tblplaylistitems.map((item: any) => {
-            const hasVideo = item.tbldesign && item.tbldesign.videoUrl;
-            return {
-                // If real video exists, use it. Otherwise, use Placeholder.
-                url: hasVideo ? item.tbldesign.videoUrl : PLACEHOLDER_VIDEO,
-                duration: item.duration || 10,
-                title: item.tbldesign?.title || "Untitled Design"
-            };
-        });
-
-        // 3. Process each VALID screen
-        for (const sId of validIds) {
-            let start = new Date();
-            let end = new Date();
-
-            if (mode === 'NOW') {
-                // If endTime provided in body, use it, else default 24h
-                if (req.body.endTime) {
-                    // Simple logic: If user sends HH:mm, construct Date
-                    // For now, let's assume default 24h logic if not fully parsed above
-                    end.setHours(start.getHours() + 24);
-                } else {
-                    end.setHours(start.getHours() + 24);
-                }
-            } else {
-                start = new Date(startTime);
-                end = new Date(endTime);
-
-                const conflict = await schedule.findOne({
-                    where: {
-                        screenId: sId,
-                        sts: true,
-                        [Op.or]: [
-                            { startTime: { [Op.between]: [start, end] } },
-                            { endTime: { [Op.between]: [start, end] } }
-                        ]
-                    }
-                });
-
-                if (conflict) {
-                    console.log(`Conflict detected for screen ${sId} - Skipping schedule`);
-                    continue;
-                }
-            }
-
-            await schedule.create({
-                id: uuidv4(),
-                screenId: sId,
-                playlistId: playlistId,
-                startTime: start,
-                endTime: end,
-                isImmediate: mode === 'NOW',
-                sts: true
-            });
-
-            await screen.update({ playlistId: playlistId }, { where: { id: sId } });
-
-            if (io) {
-                console.log(`📡 Emitting to Screen ${sId}: ${videoQueue.length} items`);
-                io.to(sId).emit('update_schedule', {
-                    action: 'SYNC_SCHEDULE',
-                    playlistId: playlistId,
-                    playlistName: plData.name,
-                    schedule: {
-                        start: start.toISOString(),
-                        end: end.toISOString(),
-                        isImmediate: mode === 'NOW'
-                    },
-                    content: videoQueue
-                });
-            }
-        }
-
-        res.status(200).send({
-            success: true,
-            msg: `Deployment sent to ${validIds.length} screens.`
-        });
-
-    } catch (err: any) {
-        console.error(err);
-        res.status(500).send({ success: false, msg: 'Deployment failed.' });
-    }
-};
-
 
