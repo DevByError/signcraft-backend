@@ -1,6 +1,5 @@
 import Sequelize from 'sequelize';
 import sequelize from '../../utils/dbconnector';
-import playlist from '../designing/playlist';
 
 const screen = sequelize.define('tblscreen', {
     id: { type: Sequelize.UUID, allowNull: false, primaryKey: true },
@@ -15,8 +14,5 @@ const screen = sequelize.define('tblscreen', {
     sts: { type: Sequelize.BOOLEAN, allowNull: false, defaultValue: true }
 });
 
-// Relationship: A screen has one playlist
-// screen.belongsTo(playlist, { foreignKey: 'playlistId' });
-// playlist.hasMany(screen, { foreignKey: 'playlistId' });
 
 export default screen;

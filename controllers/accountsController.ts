@@ -199,3 +199,63 @@ export const getlogout = (req: Request, res: Response) => {
 //         })
 //     })
 // };
+
+
+
+export const getProfile = async (req: Request, res: Response) => {
+    const userId = (req as any).userID;
+
+    if (!userId) return res.status(401).send({ success: false, msg: 'Unauthorized' });
+
+    try {
+        const user = await login.findOne({
+            where: { id: userId },
+            attributes: ['id', 'username', 'firstname', 'lastname'], // Fetch 'username' as email
+            include: [{
+                model: userroleconfig,
+                include: [{
+                    model: role,
+                    attributes: ['rolename'] // Assuming column is 'rolename' or 'name'
+                }]
+            }]
+        });
+
+        if (user) {
+            const u = user as any;
+
+            // Logic to extract the role string from the nested arrays
+            let userRole = 'designer'; // Default fallback
+
+            // Check if user has roles
+            if (u.tbluserroleconfigs && u.tbluserroleconfigs.length > 0) {
+                // Get the first role assigned
+                const roleObj = u.tbluserroleconfigs[0].tblrole;
+                if (roleObj) {
+                    // Handle case sensitivity or column naming differences
+                    userRole = roleObj.rolename || roleObj.name || roleObj.RoleName || 'designer';
+                }
+            }
+
+            res.status(200).send({
+                success: true,
+                data: {
+                    userId: u.id,
+
+                    // 1. Map DB 'username' to Frontend 'email'
+                    email: u.username,
+
+                    // 2. Combine names
+                    username: `${u.firstname} ${u.lastname}`,
+
+                    // 3. The actual role from DB
+                    role: userRole
+                }
+            });
+        } else {
+            res.status(404).send({ success: false, msg: 'User not found' });
+        }
+    } catch (err: any) {
+        console.error("Profile Error:", err);
+        res.status(500).send({ success: false, msg: 'Server Error' });
+    }
+};

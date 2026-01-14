@@ -21,7 +21,7 @@ route.post('/register', expvalidator.registervalidator, accountsController.postr
 route.post('/login', expvalidator.loginvalidator, accountsController.postlogin);
 route.get('/logout', chktoken, accountsController.getlogout);
 
-
+route.get('/profile', chktoken, accountsController.getProfile);
 
 // Default route
 // route.get('/', accountsController.getlogin);

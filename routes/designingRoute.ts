@@ -37,6 +37,7 @@ router.post('/postdelplaylist', chktoken, playlistController.postdelplaylist);
 // SCREEN ROUTES
 router.get('/getscreens', chktoken, screenController.getscreens);
 router.get('/getscreenbyid', chktoken, screenController.getscreenbyid);
+router.get('/getscreencontent', screenController.getscreencontent);
 router.post('/postscreenupdate', chktoken, screenController.postscreenupdate);
 router.post('/postdelscreen', chktoken, screenController.postdelscreen);
 router.post('/postdeploytoscreen', chktoken, screenController.postdeploytoscreen);
