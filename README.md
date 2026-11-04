@@ -5,7 +5,7 @@
 
 The API server for SignCraft, a digital signage system. It stores designs, playlists and screens in MySQL, handles login, renders playlists to MP4 and uploads them to Amazon S3, and tells the screen players over Socket.IO when new content is ready.
 
-It is used by the SignCraft web app and the SignCraft Android player.
+It is used by the [SignCraft web app](https://github.com/DevByError/signcraft-frontend) and the [SignCraft Android player](https://github.com/DevByError/android-screen).
 
 ## Features
 
@@ -39,8 +39,8 @@ Android player -- register_screen --> joins its screen room
 ## Installation
 
 ```bash
-git clone https://github.com/DevByError/ecoprse-full.git
-cd ecoprse-full/backend
+git clone https://github.com/DevByError/signcraft-backend.git
+cd signcraft-backend
 bun install
 cp .env.example .env
 ```
